@@ -17,6 +17,11 @@
 char *IP = "127.0.0.1";
 int PORT = 11000;
 
+static int avail_bytes(struct parsing_t *conn)
+{
+	return conn->buf_tail - conn->buf_head;
+}
+
 static inline long time_us(void){
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
@@ -30,7 +35,6 @@ static int on_header_parser(http_parser *parser)
 	assert(parser->nread < BUFSIZE);
 	parsing->state.size_header = parser->nread;
 	parsing->state.header_done = 1;
-	printf("Parsed the header correctly\n");
 	return 0;
 }
 
@@ -42,8 +46,7 @@ static int on_data_parser(http_parser* parser)
 	assert(idx > 0 && idx < BUFSIZE - parsing->state.content_length);
 	parsing->state.content = &parsing->buffer[idx];
 	parsing->buf_head = idx + parsing->state.content_length;
-	assert(-1);
-	return 0;
+	return 1;
 }
 
 static void execute_iter(int s, char* request) {
@@ -71,7 +74,7 @@ static void execute_iter2(int s, char* request, struct parsing_t *parsing) {
 		assert(parsing->buf_tail < BUFSIZE + s_rcv);
 		parsing->buf_tail += s_rcv;
 
-		parsing->parser.data = &parsing;
+		parsing->parser.data = parsing;
 		parsing->state.s_rcv = s_rcv;
 
 		if (!parsing->state.header_done || !parsing->state.done) {
@@ -81,10 +84,54 @@ static void execute_iter2(int s, char* request, struct parsing_t *parsing) {
 
 }
 
+// Doxing a little bit.
+static void execute_iter3(int s, char* request, struct parsing_t *parsing) {
+	size_t len = strlen(request);
+
+	for (int i = 0; i < 10; i++) {
+		int written = write(s, request, len);
+	}
+
+	while(!parsing->state.done) {
+		assert(BUFSIZE - parsing->buf_tail > 0);
+		int s_rcv = recv(s, &parsing->buffer[parsing->buf_tail], BUFSIZE - parsing->buf_tail, 0);
+		if (s_rcv < 0) {
+			fprintf(stderr, "Error while reading from the socket.");
+			exit(1);
+		}
+		assert(parsing->buf_tail <= BUFSIZE - s_rcv);
+		parsing->buf_tail += s_rcv;
+
+reparse:
+		parsing->parser.data = parsing;
+		parsing->state.s_rcv = s_rcv;
+
+		if (!parsing->state.header_done || !parsing->state.done) {
+			http_parser_execute(&parsing->parser, &parsing->settings, &parsing->buffer[parsing->buf_head], s_rcv);
+		}
+
+		if (parsing->state.header_done && parsing->state.done) {
+			// Get back some space in the buffer.
+			memcpy(parsing->buffer, &parsing->buffer[parsing->buf_head], parsing->buf_tail - parsing->buf_head);
+			parsing->buf_tail -= parsing->buf_head;
+			parsing->buf_head = 0;
+			parsing->state = (struct parser_state_t){0};
+			parsing->parser = (http_parser){0};
+			http_parser_init(&parsing->parser, HTTP_RESPONSE);
+			if (avail_bytes(parsing) == 0) {
+				break;
+			}
+			s_rcv = avail_bytes(parsing);
+			goto reparse;
+		}
+	}
+
+}
+
 int main(void) {
 
 	char buffer[1024];
-	char request[] = "POST / HTTP/1.1\r\nHost:127.0.0.1:11000\r\nContent-Length: 5\r\n\r\n12345";
+	char request[] = "POST / HTTP/1.1\r\nHost:127.0.0.1:11000\r\nContent-Length: 5\r\n\r\n12345\0";
 	struct sockaddr_in srvr_addr;
 
 	srvr_addr.sin_family = AF_INET;
@@ -121,7 +168,8 @@ int main(void) {
 		http_parser_init(&parsing.parser, HTTP_RESPONSE);
 
 		long start = time_us();
-		execute_iter2(s, request, &parsing);
+		execute_iter3(s, request, &parsing);
+		//execute_iter(s, request);
 		long end = time_us();
 		printf("%ld\n", end - start);
         i++;
