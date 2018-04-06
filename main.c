@@ -120,7 +120,6 @@ static void execute_iter3(int s, char* request, struct parsing_t *parsing) {
 	size_t how_many_bytes_rcv = 0;
 	size_t how_many_bytes_processed = 0;
 	while(count < REPS) {
-		printf("%d: Received %ld, processed %ld, bh %d, bt %d\n", count, how_many_bytes_rcv, how_many_bytes_processed, parsing->buf_head, parsing->buf_tail);
 		assert(BUFSIZE - parsing->buf_tail > 0);
 		int s_rcv = recv(s, &parsing->buffer[parsing->buf_tail], BUFSIZE - parsing->buf_tail, 0);
 		how_many_bytes_rcv += s_rcv;
@@ -136,7 +135,8 @@ reparse:
 		parsing->state.s_rcv = s_rcv;
 
 		if (!parsing->state.header_done || !parsing->state.done) {
-			http_parser_execute(&parsing->parser, &parsing->settings, &parsing->buffer[parsing->buf_head], s_rcv);
+			int size = parsing->buf_tail - parsing->buf_head;
+			http_parser_execute(&parsing->parser, &parsing->settings, &parsing->buffer[parsing->buf_head], size);
 		}
 
 		// Reset the parser anyway.
@@ -160,7 +160,7 @@ reparse:
 		}
 	}
 
-	printf("Processed %lu, received %lu, %d\n", how_many_bytes_processed, how_many_bytes_rcv, count);
+	//printf("Processed %lu, received %lu, %d\n", how_many_bytes_processed, how_many_bytes_rcv, count);
 	assert(how_many_bytes_rcv == how_many_bytes_processed);
 
 }
@@ -188,7 +188,7 @@ int main(void) {
 	}
 
     int i = 0;
-	while(i < 10) {
+	while(i < 1000) {
 
 		// Parsing the response.
 		struct parsing_t parsing = {0};
