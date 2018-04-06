@@ -25,12 +25,13 @@ static int on_data_parser(http_parser* parser)
 	parsing->state.content = &parsing->buffer[idx];
 	parsing->buf_head = idx + parsing->state.content_length;
 	printf("Parsed the data as well.\n");
-	return 0;
+	return 1;
 }
 
 int main(int argc, char const *argv[]) {
-	char *message =  "HTTP/1.1 200 OK\r\nServer: 127.0.0.1:11000\r\nContent-type: text/plain\r\nContent-Length: 5\r\n\r\n12345";
-
+	//char *message =  "HTTP/1.1 200 OK\r\nServer: 127.0.0.1:11000\r\nContent-type: text/plain\r\nContent-Length: 5\r\n\r\n12345";
+	//char *message = "HTTP/1.1 200 OK\r\nServer: 127.0.0.1:11000\r\nContent-type: text/plain\r\nContent-Length: 5\r\n\r\n12345HTTP/1.1 200 OK\r\nServer: 127.0.0.1:11000\r\nContent-type: text/plain\r\nContent-Length: 5\r\n\r\n12345";
+	char *message = "HTTP/1.1 200 OK\r\nServer: 127.0.0.1:11000\r\nContent-type: text/plain\r\nContent-Length: 5\r\n\r\n12345HTTP/1.1 200 OK\r\nServer: 127.0.0.1:11000\r\nContent-type: text/plain\r\nContent-Length: 5\r\n\r\n12345HTTP/1.1 200";
 	struct parsing_t parsing = {0};
 	parsing.buf_head = 0;
 	parsing.buf_tail = 0;
@@ -50,7 +51,16 @@ int main(int argc, char const *argv[]) {
 	parsing.state.s_rcv = strlen(message);
 	parsing.buf_tail += strlen(message);
 
-	http_parser_execute(&parsing.parser, &parsing.settings, &parsing.buffer[parsing.buf_head], strlen(message));
+	http_parser_execute(&parsing.parser, &parsing.settings, &parsing.buffer[parsing.buf_head], parsing.buf_tail - parsing.buf_head);
+
+	//while ((parsing.buf_head == parsing.buf_tail && parsing.buf_head == 0) || (parsing.buf_head < parsing.buf_tail)){
+	//	parsing.parser = (http_parser){0};
+	//	parsing.parser.data = &parsing;
+	//	parsing.state.s_rcv = parsing.buf_tail - parsing.buf_head;
+	//	http_parser_init(&parsing.parser, HTTP_RESPONSE);
+	//	http_parser_execute(&parsing.parser, &parsing.settings, &parsing.buffer[parsing.buf_head], parsing.buf_tail - parsing.buf_head);
+	//}
+
 
 	return 0;
 }

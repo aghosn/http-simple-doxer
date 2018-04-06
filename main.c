@@ -10,12 +10,22 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "http_parser.h"
 #include "response.h"
 
 char *IP = "127.0.0.1";
 int PORT = 11000;
+
+static void setnonblocking(int fd)
+{
+	int flags = fcntl(fd, F_GETFL, 0);
+	assert(flags >= 0);
+	flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+	assert(flags >= 0);
+}
 
 static int avail_bytes(struct parsing_t *conn)
 {
@@ -40,12 +50,15 @@ static int on_header_parser(http_parser *parser)
 
 static int on_data_parser(http_parser* parser)
 {
+	char *reply = "HTTP/1.1 200 OK\r\nServer: 127.0.0.1:11000\r\nContent-type: text/plain\r\nContent-Length: 5\r\n\r\n12345";
 	struct parsing_t* parsing = (struct parsing_t*)(parser->data);
 	parsing->state.done = 1;
 	int idx = parsing->buf_head + parsing->state.size_header;
 	assert(idx > 0 && idx < BUFSIZE - parsing->state.content_length);
 	parsing->state.content = &parsing->buffer[idx];
+	assert(strncmp(&parsing->buffer[parsing->buf_head], reply, strlen(reply)) == 0);
 	parsing->buf_head = idx + parsing->state.content_length;
+	assert(parsing->state.content_length != 0);
 	return 1;
 }
 
@@ -84,17 +97,33 @@ static void execute_iter2(int s, char* request, struct parsing_t *parsing) {
 
 }
 
+static void stub() {
+	printf("Shit\n");
+}
+
 // Doxing a little bit.
 static void execute_iter3(int s, char* request, struct parsing_t *parsing) {
 	size_t len = strlen(request);
 
-	for (int i = 0; i < 10; i++) {
+	int REPS = 100;
+	size_t bytes_written = 0;
+	for (int i = 0; i < REPS; i++) {
 		int written = write(s, request, len);
+		if (written > 0) {
+			bytes_written += written;
+		}
 	}
 
-	while(!parsing->state.done) {
+	assert(bytes_written == 6500);
+
+	int count = 0;
+	size_t how_many_bytes_rcv = 0;
+	size_t how_many_bytes_processed = 0;
+	while(count < REPS) {
+		printf("%d: Received %ld, processed %ld, bh %d, bt %d\n", count, how_many_bytes_rcv, how_many_bytes_processed, parsing->buf_head, parsing->buf_tail);
 		assert(BUFSIZE - parsing->buf_tail > 0);
 		int s_rcv = recv(s, &parsing->buffer[parsing->buf_tail], BUFSIZE - parsing->buf_tail, 0);
+		how_many_bytes_rcv += s_rcv;
 		if (s_rcv < 0) {
 			fprintf(stderr, "Error while reading from the socket.");
 			exit(1);
@@ -110,28 +139,36 @@ reparse:
 			http_parser_execute(&parsing->parser, &parsing->settings, &parsing->buffer[parsing->buf_head], s_rcv);
 		}
 
+		// Reset the parser anyway.
+		parsing->parser = (http_parser){0};
+		http_parser_init(&parsing->parser, HTTP_RESPONSE);
+
 		if (parsing->state.header_done && parsing->state.done) {
+			count++;
+			//printf("Count is %d\n", count);
 			// Get back some space in the buffer.
 			memcpy(parsing->buffer, &parsing->buffer[parsing->buf_head], parsing->buf_tail - parsing->buf_head);
+			assert(parsing->buf_head != 0 && parsing->buf_head % 94 == 0);
+			how_many_bytes_processed += parsing->buf_head;
 			parsing->buf_tail -= parsing->buf_head;
 			parsing->buf_head = 0;
 			parsing->state = (struct parser_state_t){0};
-			parsing->parser = (http_parser){0};
-			http_parser_init(&parsing->parser, HTTP_RESPONSE);
-			if (avail_bytes(parsing) == 0) {
-				break;
+			if (avail_bytes(parsing) != 0) {
+				s_rcv = avail_bytes(parsing);
+				goto reparse;
 			}
-			s_rcv = avail_bytes(parsing);
-			goto reparse;
 		}
 	}
+
+	printf("Processed %lu, received %lu, %d\n", how_many_bytes_processed, how_many_bytes_rcv, count);
+	assert(how_many_bytes_rcv == how_many_bytes_processed);
 
 }
 
 int main(void) {
 
 	char buffer[1024];
-	char request[] = "POST / HTTP/1.1\r\nHost:127.0.0.1:11000\r\nContent-Length: 5\r\n\r\n12345\0";
+	char request[] = "POST / HTTP/1.1\r\nHost:127.0.0.1:11000\r\nContent-Length: 5\r\n\r\n12345";
 	struct sockaddr_in srvr_addr;
 
 	srvr_addr.sin_family = AF_INET;
@@ -151,7 +188,7 @@ int main(void) {
 	}
 
     int i = 0;
-	while(1) {
+	while(i < 10) {
 
 		// Parsing the response.
 		struct parsing_t parsing = {0};

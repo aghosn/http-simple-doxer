@@ -9,4 +9,4 @@ trial: parsing_trial.c http_parser.c
 .PHONY: clean
 
 clean:
-	rm -f *.o doxer
+	rm -f *.o doxer trial
