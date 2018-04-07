@@ -19,8 +19,8 @@
 char *IP = "127.0.0.1";
 int PORT = 11000;
 
-extern void execute_iter_lucene(int s, struct parsing_t *parsing);
-extern void parse_queries();
+extern void execute_iter_lucene(int s, int i, struct parsing_t *parsing);
+extern void parse_queries(int* nb);
 
 static void setnonblocking(int fd)
 {
@@ -59,9 +59,10 @@ static int on_data_parser(http_parser* parser)
 	int idx = parsing->buf_head + parsing->state.size_header;
 	assert(idx > 0 && idx < BUFSIZE - parsing->state.content_length);
 	parsing->state.content = &parsing->buffer[idx];
-	assert(strncmp(&parsing->buffer[parsing->buf_head], reply, strlen(reply)) == 0);
+	//assert(strncmp(&parsing->buffer[parsing->buf_head], reply, strlen(reply)) == 0);
 	parsing->buf_head = idx + parsing->state.content_length;
 	assert(parsing->state.content_length != 0);
+	// /printf("%ld\n",parsing->state.content_length + parsing->state.size_header);
 	return 1;
 }
 
@@ -190,10 +191,11 @@ int main(void) {
 		exit(-errno);
 	}
 	srand(time(NULL));
-	parse_queries();
+	int max = 0;
+	parse_queries(&max);
 
     int i = 0;
-	while(i < 1000) {
+	while(i < max) {
 
 		// Parsing the response.
 		struct parsing_t parsing = {0};
@@ -210,7 +212,7 @@ int main(void) {
 		http_parser_init(&parsing.parser, HTTP_RESPONSE);
 
 		long start = time_us();
-		execute_iter_lucene(s, &parsing);
+		execute_iter_lucene(s, i, &parsing);
 		//execute_iter(s, request);
 		long end = time_us();
 		printf("%ld\n", end - start);

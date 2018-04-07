@@ -26,7 +26,7 @@ static int count_lines() {
 	return count;
 }
 
-void parse_queries() {
+void parse_queries(int* nb) {
 	int entries = count_lines();
 	if (entries < 0) {
 		fprintf(stderr, "Counting the number of lines in the file went wrong.\n");
@@ -61,9 +61,10 @@ void parse_queries() {
 	}
 	fclose(fp);
 	nb_queries = entries;
+	*nb = entries;
 }
 
-void send_something(int s) {
+void send_something(int s, int idx) {
 	int ret;
 	// generate the query.
 	char *message =
@@ -73,16 +74,19 @@ Content-Type: text/plain\r\n\
 Content-Length: %d\r\n\
 \r\n\
 %s";
-
-	int i = rand() % nb_queries;
-	char* query = queries[i];
+	if (idx < 0) {
+		idx = rand() % nb_queries;
+	} else {
+		assert(idx < nb_queries);
+	}
+	char* query = queries[idx];
 	char request[2 * 1024];
 	sprintf(request, message, strlen(query), query);
 	ret = send(s, request, strlen(request), 0);
 }
 
-void execute_iter_lucene(int s, struct parsing_t *parsing) {
-	send_something(s);
+void execute_iter_lucene(int s, int idx, struct parsing_t *parsing) {
+	send_something(s, idx);
 
 	while(!parsing->state.done) {
 		int s_rcv = recv(s, &parsing->buffer[parsing->buf_tail], BUFSIZE - parsing->buf_tail, 0);
