@@ -19,6 +19,9 @@
 char *IP = "127.0.0.1";
 int PORT = 11000;
 
+extern void execute_iter_lucene(int s, struct parsing_t *parsing);
+extern void parse_queries();
+
 static void setnonblocking(int fd)
 {
 	int flags = fcntl(fd, F_GETFL, 0);
@@ -186,6 +189,8 @@ int main(void) {
 		fprintf(stderr, "Error connect\n");
 		exit(-errno);
 	}
+	srand(time(NULL));
+	parse_queries();
 
     int i = 0;
 	while(i < 1000) {
@@ -205,7 +210,7 @@ int main(void) {
 		http_parser_init(&parsing.parser, HTTP_RESPONSE);
 
 		long start = time_us();
-		execute_iter3(s, request, &parsing);
+		execute_iter_lucene(s, &parsing);
 		//execute_iter(s, request);
 		long end = time_us();
 		printf("%ld\n", end - start);

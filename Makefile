@@ -1,6 +1,6 @@
 all: doxer trial
 
-doxer: main.c http_parser.c
+doxer: main.c http_parser.c doxing_lucene.c
 	gcc -g -O0 -o $@ $^
 
 trial: parsing_trial.c http_parser.c
