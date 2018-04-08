@@ -2,7 +2,7 @@
 
 #include "http_parser.h"
 
-#define BUFSIZE 80240
+#define BUFSIZE 20240
 
 /*HTTP protocol struct*/
 struct parser_state_t {
