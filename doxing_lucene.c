@@ -64,6 +64,22 @@ void parse_queries(int* nb) {
 	*nb = entries;
 }
 
+static int send_exactly(int fd, void *buf, size_t size)
+{
+	ssize_t ret;
+	char *cbuf = (char *) buf;
+	size_t partial = 0;
+
+	while (partial < size) {
+		ret = send(fd, &cbuf[partial], size - partial, MSG_NOSIGNAL);
+		if (ret <= 0)
+			return ret;
+		partial += ret;
+	}
+
+	return 1;
+}
+
 void send_something(int s, int idx) {
 	int ret;
 	// generate the query.
@@ -82,7 +98,9 @@ Content-Length: %d\r\n\
 	char* query = queries[idx];
 	char request[2 * 1024];
 	sprintf(request, message, strlen(query), query);
-	ret = send(s, request, strlen(request), 0);
+	size_t size = strlen(request);
+	assert(send_exactly(s, request, size) == 1);
+	//ret = send(s, request, strlen(request), 0);
 }
 
 void execute_iter_lucene(int s, int idx, struct parsing_t *parsing) {

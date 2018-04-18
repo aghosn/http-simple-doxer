@@ -62,7 +62,7 @@ static int on_data_parser(http_parser* parser)
 	//assert(strncmp(&parsing->buffer[parsing->buf_head], reply, strlen(reply)) == 0);
 	parsing->buf_head = idx + parsing->state.content_length;
 	assert(parsing->state.content_length != 0);
-	// /printf("%ld\n",parsing->state.content_length + parsing->state.size_header);
+	// printf("%ld\n",parsing->state.content_length + parsing->state.size_header);
 	return 1;
 }
 
@@ -195,7 +195,7 @@ int main(void) {
 	parse_queries(&max);
 
     int i = 0;
-	while(i < max) {
+	while(i < 103210) {
 
 		// Parsing the response.
 		struct parsing_t parsing = {0};
@@ -212,11 +212,11 @@ int main(void) {
 		http_parser_init(&parsing.parser, HTTP_RESPONSE);
 
 		long start = time_us();
-		execute_iter_lucene(s, i, &parsing);
+		execute_iter_lucene(s, i % max, &parsing);
 		//execute_iter(s, request);
 		long end = time_us();
 		printf("%ld\n", end - start);
-        i++;
+		i++;
 	}
 
 	close(s);
